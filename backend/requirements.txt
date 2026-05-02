@@ -1,0 +1,44 @@
+# ── Core Framework ─────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+
+# ── Database ───────────────────────────────────────────────────
+sqlalchemy[asyncio]
+asyncpg
+aiosqlite
+alembic
+psycopg2-binary
+
+# ── Authentication ─────────────────────────────────────────────
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# ── AI / LiteLLM ───────────────────────────────────────────────
+openai
+httpx
+langchain
+langchain-openai
+langchain-community
+langgraph
+
+# ── Vector Store ───────────────────────────────────────────────
+chromadb
+
+# ── Google Integrations ────────────────────────────────────────
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+gspread
+
+# ── Utilities ──────────────────────────────────────────────────
+python-dotenv
+pydantic
+pydantic-settings
+email-validator
+aiofiles
+
+# ── Testing ────────────────────────────────────────────────────
+pytest
+pytest-asyncio
+httpx

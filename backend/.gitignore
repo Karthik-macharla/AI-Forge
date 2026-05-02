@@ -1,0 +1,10 @@
+.venv/
+.env
+chroma_db/
+uploads/
+__pycache__/
+*.pyc
+*.pyo
+# Service account keys & OAuth secrets — never commit
+amzur-chatbot-dev-*.json
+client_secret_*.json

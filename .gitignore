@@ -33,6 +33,13 @@ client_secret_*.json
 # ── Vector stores ──────────────────────────────────────────────
 chroma_db/
 
+# ── User uploaded files (storage) ─────────────────────────────
+storage/
+
+# ── Temp scripts ───────────────────────────────────────────────
+fix_inputbar.py
+truncate_inputbar.py
+
 # ── Node / frontend ────────────────────────────────────────────
 node_modules/
 dist/

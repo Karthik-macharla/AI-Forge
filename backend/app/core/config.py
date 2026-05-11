@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gemini-2.0-flash"
     LITELLM_EMBEDDING_MODEL: str = "text-embedding-3-large"
     IMAGE_GEN_MODEL: str = "gemini-2.0-flash"
+    VIDEO_GEN_MODEL: str = "veo-2"
 
     # Organisation email domain restriction (comma-separated)
     ALLOWED_EMAIL_DOMAINS: str = "amzur.com,stackyon.com"
@@ -38,14 +39,21 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str
 
     # ChromaDB
-    CHROMA_PERSIST_DIR: str = "./chroma_db"
+    CHROMA_PERSIST_DIR: str = "C:/SDG_1_backend/chroma_db"
 
     # Google Sheets Service Account (optional until P9)
     GOOGLE_SERVICE_ACCOUNT_JSON: Optional[str] = None
 
     # File Uploads
     MAX_UPLOAD_MB: int = 20
-    UPLOAD_DIR: str = "./uploads"
+    UPLOAD_DIR: str = "C:/SDG_1_backend/storage"
+    ACCEPTED_MIME_TYPES: str = (
+        "image/jpeg,image/png,image/gif,image/webp,"
+        "application/pdf,"
+        "text/plain,text/x-python,text/javascript,"
+        "video/mp4,video/webm,video/ogg,video/quicktime,"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 settings = Settings()

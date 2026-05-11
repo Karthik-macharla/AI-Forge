@@ -11,7 +11,7 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     __table_args__ = (
-        CheckConstraint("role IN ('user', 'assistant')", name="ck_chat_messages_role"),
+        CheckConstraint("role IN ('user', 'assistant', 'attachment')", name="ck_chat_messages_role"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

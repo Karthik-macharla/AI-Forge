@@ -24,6 +24,12 @@ langgraph
 
 # ── Vector Store ───────────────────────────────────────────────
 chromadb
+langchain-chroma
+
+# ── Document Parsing ───────────────────────────────────────────
+pypdf
+pymupdf
+openpyxl
 
 # ── Google Integrations ────────────────────────────────────────
 google-auth

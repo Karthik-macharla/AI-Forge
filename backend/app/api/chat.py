@@ -19,6 +19,7 @@ async def stream_chat(
             thread_id=request.thread_id,
             user_id=current_user.id,
             user_email=current_user.email,
+            attachment_ids=request.attachment_ids,
         ),
         media_type="text/event-stream",
     )

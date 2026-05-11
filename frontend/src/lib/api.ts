@@ -61,7 +61,72 @@ export const healthApi = {
   check: () => api.get<{ status: string; app: string; environment: string }>('/health'),
 };
 
+// ── Attachments ────────────────────────────────────────────────────────────
+
+export const attachmentsApi = {
+  upload: (threadId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('thread_id', threadId);
+    return api.post<import('../types').Attachment>('/attachments/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  /** Fetch all attachments for a thread — used to restore message history after reload. */
+  listByThread: (threadId: string) =>
+    api.get<import('../types').Attachment[]>(`/threads/${threadId}/attachments`),
+};
+
 export default api;
+
+// ── Images ────────────────────────────────────────────────────────────────
+
+export interface ImageGenResponse {
+  image_url: string;
+  revised_prompt: string | null;
+  message_id: string;
+}
+
+export const imageApi = {
+  generate: (threadId: string, prompt: string) =>
+    api.post<ImageGenResponse>('/images/generate', { thread_id: threadId, prompt }),
+};
+
+// ── Videos ────────────────────────────────────────────────────────────────
+
+export interface VideoGenResponse {
+  video_url: string;
+  message_id: string;
+}
+
+export const videoApi = {
+  generate: (threadId: string, prompt: string) =>
+    api.post<VideoGenResponse>('/videos/generate', { thread_id: threadId, prompt }),
+};
+
+// ── RAG ───────────────────────────────────────────────────────────────────
+
+export async function streamRag(
+  question: string,
+  threadId: string | null,
+  onToken: (token: string) => void,
+): Promise<void> {
+  const response = await fetch("/api/rag/query", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ question, thread_id: threadId }),
+  });
+  if (!response.ok) throw new Error(`RAG query failed: ${response.statusText}`);
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Response body is not readable");
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    onToken(decoder.decode(value, { stream: true }));
+  }
+}
 
 // ── Chat Streaming ─────────────────────────────────────────────────────────
 
@@ -69,12 +134,13 @@ export async function streamChat(
   threadId: string,
   message: string,
   onToken: (token: string) => void,
+  attachmentIds: string[] = [],
 ): Promise<void> {
   const response = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ message, thread_id: threadId }),
+    body: JSON.stringify({ message, thread_id: threadId, attachment_ids: attachmentIds }),
   });
 
   if (!response.ok) {

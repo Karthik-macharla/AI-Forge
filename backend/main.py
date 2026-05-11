@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api import health, chat, auth, threads
+from app.api import health, chat, auth, threads, attachments, images, videos, rag
 
 setup_logging()
 
@@ -45,6 +45,10 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(threads.router)
 app.include_router(chat.router)
+app.include_router(attachments.router)
+app.include_router(images.router)
+app.include_router(videos.router)
+app.include_router(rag.router)
 
 
 @app.get("/")

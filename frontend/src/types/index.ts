@@ -41,10 +41,13 @@ export type AttachmentType = 'image' | 'video' | 'pdf' | 'excel' | 'code';
 export interface Attachment {
   id: string;
   message_id: string;
+  thread_id: string;
   file_name: string;
   mime_type: string;
   attachment_type: AttachmentType;
+  file_size_bytes: number;
   url: string;
+  created_at: string;
 }
 
 // ── API Responses ──────────────────────────────────────────────────────────

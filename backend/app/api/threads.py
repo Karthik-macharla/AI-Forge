@@ -4,9 +4,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.auth import CurrentUser, get_current_user
+from app.schemas.attachment import AttachmentResponse
 from app.schemas.message import MessageResponse
 from app.schemas.thread import ThreadCreate, ThreadResponse, ThreadUpdate
 from app.services import message_service, thread_service
+from app.db.supabase_client import get_supabase
 
 router = APIRouter(prefix="/api/threads", tags=["Threads"])
 
@@ -72,3 +74,26 @@ async def list_messages(
         )
     messages = message_service.list_messages(thread_id)
     return [MessageResponse.model_validate(m) for m in messages]
+
+
+@router.get("/{thread_id}/attachments", response_model=list[AttachmentResponse])
+async def list_thread_attachments(
+    thread_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[AttachmentResponse]:
+    """Return all attachments that belong to a thread (for restoring message history)."""
+    thread = thread_service.get_thread(thread_id, current_user.id)
+    if not thread:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": "Thread not found"},
+        )
+    sb = get_supabase()
+    res = (
+        sb.table("attachments")
+        .select("*")
+        .eq("thread_id", str(thread_id))
+        .order("created_at")
+        .execute()
+    )
+    return [AttachmentResponse.model_validate(row) for row in res.data]

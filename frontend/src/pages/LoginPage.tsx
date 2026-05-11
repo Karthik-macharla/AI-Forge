@@ -54,8 +54,21 @@ export default function LoginPage() {
   }
 
   async function handleGoogle() {
-    const res = await authApi.googleLoginUrl();
-    window.location.href = res.data.url;
+    try {
+      const res = await authApi.googleLoginUrl();
+      window.location.href = res.data.url;
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: { message?: string } | string } } })
+          ?.response?.data?.detail;
+      if (typeof detail === 'object' && detail?.message) {
+        setError(detail.message);
+      } else if (typeof detail === 'string') {
+        setError(detail);
+      } else {
+        setError('Could not connect to the server. Please try again.');
+      }
+    }
   }
 
   return (

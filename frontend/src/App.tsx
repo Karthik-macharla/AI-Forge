@@ -8,6 +8,7 @@ import NL2SQLPage from './pages/NL2SQLPage';
 import SheetsPage from './pages/SheetsPage';
 import ResearchPage from './pages/ResearchPage';
 import TicTacToePage from './pages/TicTacToePage';
+import { DigestBanner } from './components/DigestBanner';
 
 export default function App() {
   const { user, isLoading, setUser, setLoading } = useAuthStore();
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/game" element={<TicTacToePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <DigestBanner />
     </BrowserRouter>
   );
 }

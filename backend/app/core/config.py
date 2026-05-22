@@ -81,5 +81,10 @@ class Settings(BaseSettings):
         Path(__file__).parent.parent.parent / "mcp_servers" / "arxiv_server.py"
     )
 
+    # N8N Integration (Project 13)
+    N8N_API_KEY: str = ""
+    N8N_WEBHOOK_URL: str = ""
+    N8N_STATUS_WEBHOOK_URL: str = ""
+
 
 settings = Settings()

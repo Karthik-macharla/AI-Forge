@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api import health, chat, auth, threads, attachments, images, videos, rag, nl2sql, sheets, research as research_api, game
+from app.api import health, chat, auth, threads, attachments, images, videos, rag, nl2sql, sheets, research as research_api, game, n8n as n8n_api
 
 setup_logging()
 
@@ -53,6 +53,7 @@ app.include_router(nl2sql.router)
 app.include_router(sheets.router)
 app.include_router(research_api.router)
 app.include_router(game.router)
+app.include_router(n8n_api.router)
 
 
 @app.get("/")

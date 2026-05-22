@@ -82,6 +82,18 @@ export const attachmentsApi = {
 
 export default api;
 
+// ── N8N Digest ─────────────────────────────────────────────────────────────
+
+export interface DigestRecord {
+  digest_text: string;
+  run_date: string;
+  article_count: number | null;
+}
+
+export const digestApi = {
+  latest: () => api.get<DigestRecord | null>('/n8n/digest'),
+};
+
 // ── Images ────────────────────────────────────────────────────────────────
 
 export interface ImageGenResponse {

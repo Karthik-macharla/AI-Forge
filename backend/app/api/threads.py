@@ -2,6 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 from app.core.auth import CurrentUser, get_current_user
 from app.schemas.attachment import AttachmentResponse
@@ -97,3 +98,28 @@ async def list_thread_attachments(
         .execute()
     )
     return [AttachmentResponse.model_validate(row) for row in res.data]
+
+
+class RawMessageBody(BaseModel):
+    role: str
+    content: str
+
+
+@router.post("/{thread_id}/messages/save", status_code=status.HTTP_200_OK)
+async def save_raw_messages(
+    thread_id: uuid.UUID,
+    body: list[RawMessageBody],
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Persist pre-built user + assistant messages (NL2SQL, Sheets) to thread history."""
+    thread = thread_service.get_thread(thread_id, current_user.id)
+    if not thread:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": "Thread not found"},
+        )
+    for msg in body:
+        if msg.role not in ("user", "assistant"):
+            continue
+        message_service.create_message(thread_id, msg.role, msg.content)
+    return {"saved": len(body)}

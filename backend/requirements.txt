@@ -28,8 +28,16 @@ langchain-chroma
 
 # ── Document Parsing ───────────────────────────────────────────
 pypdf
+
+# ── Research Digest Agent (Project 10) ────────────────────────
+arxiv>=2.1.0
+sse-starlette>=2.1.0
 pymupdf
 openpyxl
+
+# ── MCP Integration (Project 12) ──────────────────────────────
+mcp>=1.0.0
+langchain-mcp-adapters>=0.1.0
 
 # ── Google Integrations ────────────────────────────────────────
 google-auth
@@ -48,3 +56,8 @@ aiofiles
 pytest
 pytest-asyncio
 httpx
+
+# ── Google Sheets & Pandas Agent (Project 9) ───────────────────────────────
+pandas
+tabulate
+langchain-experimental

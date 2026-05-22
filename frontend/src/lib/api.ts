@@ -53,6 +53,9 @@ export const messagesApi = {
 
   send: (threadId: string, content: string) =>
     api.post<Message>(`/threads/${threadId}/messages`, { content }),
+
+  save: (threadId: string, messages: Array<{ role: string; content: string }>) =>
+    api.post<{ saved: number }>(`/threads/${threadId}/messages/save`, messages),
 };
 
 // ── Health ─────────────────────────────────────────────────────────────────

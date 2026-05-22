@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { InputBar, type InputBarHandle, type PendingAttachment } from "../components/chat/InputBar";
 import { MessageList } from "../components/chat/MessageList";
 import { ThreadSidebar } from "../components/chat/ThreadSidebar";
 import { attachmentsApi, authApi, imageApi, videoApi, streamRag, messagesApi, streamChat, threadsApi } from "../lib/api";
+import { queryNL2SQL } from "../lib/nl2sqlClient";
+import { querySheetUrl } from "../lib/sheetsClient";
+import { startResearchStream } from "../lib/researchClient";
 import { useAuthStore } from "../store/auth";
 import type { ChatMessage } from "../types/chat";
 
 export default function ChatPage() {
   const { user, setUser } = useAuthStore();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -324,6 +329,284 @@ export default function ChatPage() {
     }
   }
 
+  // ── Database Q&A (NL2SQL inline in chat) ──────────────────────────────
+  // Streams SQL + answer into the current thread as a regular chat message.
+  // The generated SQL is embedded as a markdown code block so MessageList
+  // renders it with syntax highlighting automatically.
+  async function handleDbQuery(question: string) {
+    const threadId = await ensureThread(question);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: question, timestamp: new Date() },
+      { role: "assistant", content: "", timestamp: new Date() },
+    ]);
+    setIsLoading(true);
+
+    let generatedSQL = "";
+    let answerText = "";
+    let receivedAnyEvent = false;
+
+    try {
+      for await (const event of queryNL2SQL(question)) {
+        receivedAnyEvent = true;
+        if (event.type === "sql") {
+          generatedSQL = event.sql;
+          // Show the SQL block immediately as it arrives
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: `**Generated SQL**\n\`\`\`sql\n${generatedSQL}\n\`\`\`\n\n`,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === "token") {
+          answerText += event.token;
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: `**Generated SQL**\n\`\`\`sql\n${generatedSQL}\n\`\`\`\n\n${answerText}`,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === "error") {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: `> ⚠️ **Database query error:** ${event.message}`,
+              };
+            }
+            return updated;
+          });
+          break;
+        } else if (event.type === "done") {
+          break;
+        }
+      }
+      // Stream closed with no events — means backend exception was swallowed inside StreamingResponse
+      if (!receivedAnyEvent) {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last.role === "assistant" && !last.content) {
+            updated[updated.length - 1] = {
+              ...last,
+              content: "> ⚠️ **Database query error:** Could not process your question. Please try rephrasing.",
+            };
+          }
+          return updated;
+        });
+      }
+    } catch {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last.role === "assistant" && !last.content) {
+          updated[updated.length - 1] = {
+            ...last,
+            content: "Sorry, the database query failed. Please try again.",
+          };
+        }
+        return updated;
+      });
+    } finally {
+      setIsLoading(false);
+      const assistantContent = generatedSQL
+        ? `**Generated SQL**\n\`\`\`sql\n${generatedSQL}\n\`\`\`\n\n${answerText}`
+        : answerText;
+      if (assistantContent) {
+        messagesApi.save(threadId, [
+          { role: "user", content: question },
+          { role: "assistant", content: assistantContent },
+        ]).catch(() => {});
+      }
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
+    }
+  }
+
+  // ── Google Sheet Q&A (inline in chat) ────────────────────────────────────
+  async function handleSheetsQuery(question: string, sheetUrl: string) {
+    const threadId = await ensureThread(question);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: question, timestamp: new Date() },
+      { role: "assistant", content: "", timestamp: new Date() },
+    ]);
+    setIsLoading(true);
+
+    let answerText = "";
+    try {
+      for await (const event of querySheetUrl(sheetUrl, question)) {
+        if (event.type === "token") {
+          answerText += event.token;
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: last.content + event.token,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === "error") {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: `> ⚠️ **Sheet query error:** ${event.message}`,
+              };
+            }
+            return updated;
+          });
+          break;
+        } else if (event.type === "done") {
+          break;
+        }
+      }
+    } catch {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last.role === "assistant" && !last.content) {
+          updated[updated.length - 1] = {
+            ...last,
+            content: "Sorry, the sheet query failed. Please try again.",
+          };
+        }
+        return updated;
+      });
+    } finally {
+      setIsLoading(false);
+      if (answerText) {
+        messagesApi.save(threadId, [
+          { role: "user", content: question },
+          { role: "assistant", content: answerText },
+        ]).catch(() => {});
+      }
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
+    }
+  }
+
+  // ── Research Digest Agent (inline in chat) ───────────────────────────
+  function handleResearchQuery(question: string) {
+    ensureThread(question).then((threadId) => {
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: question, timestamp: new Date() },
+        { role: "assistant", content: "", timestamp: new Date() },
+      ]);
+      setIsLoading(true);
+
+      const statusLines: string[] = [];
+      let digestText = "";
+      let paperCount = 0;
+
+      const es = startResearchStream(question, 10);
+
+      function updateBubble(content: string) {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last.role === "assistant") {
+            updated[updated.length - 1] = { ...last, content };
+          }
+          return updated;
+        });
+      }
+
+      const eventTypes = ["status", "tool_call", "thinking", "paper_found", "digest_chunk", "done", "error"];
+
+      eventTypes.forEach((evType) => {
+        es.addEventListener(evType, (e: MessageEvent) => {
+          try {
+            const ev = JSON.parse((e as MessageEvent).data);
+
+            if (evType === "status") {
+              statusLines.push(`⚙️ ${ev.data}`);
+              updateBubble(statusLines.join("  \n"));
+            } else if (evType === "tool_call") {
+              statusLines.push(`🔍 ${ev.data}`);
+              updateBubble(statusLines.join("  \n"));
+            } else if (evType === "thinking") {
+              statusLines.push(`💭 ${ev.data}`);
+              updateBubble(statusLines.join("  \n"));
+            } else if (evType === "paper_found") {
+              paperCount++;
+              statusLines.push(`📄 Found paper #${paperCount}`);
+              updateBubble(statusLines.join("  \n"));
+            } else if (evType === "digest_chunk") {
+              digestText += ev.data;
+              updateBubble(statusLines.join("  \n") + "\n\n---\n\n" + digestText);
+            } else if (evType === "done") {
+              try {
+                const digest = ev.metadata;
+                const findings = (digest.key_findings as string[])
+                  .map((f) => `- ${f}`)
+                  .join("\n");
+                const topPapers = (digest.important_papers as Array<{ title: string; arxiv_url: string; authors: string[]; published: string }>)
+                  .slice(0, 3)
+                  .map((p) => `- [${p.title}](${p.arxiv_url}) — ${p.authors.slice(0, 2).join(", ")} (${String(p.published).slice(0, 4)})`)
+                  .join("\n");
+                const finalContent =
+                  `## Research Summary: ${digest.topic}\n\n` +
+                  `**Confidence:** ${Math.round(digest.confidence_score * 100)}% · ${digest.papers_analyzed} papers analyzed\n\n` +
+                  `### Key Findings\n${findings}\n\n` +
+                  `### Summary\n${digest.final_summary}` +
+                  (topPapers ? `\n\n### Top Papers\n${topPapers}` : "");
+                updateBubble(finalContent);
+                messagesApi.save(threadId, [
+                  { role: "user", content: question },
+                  { role: "assistant", content: finalContent },
+                ]).catch(() => {});
+              } catch {
+                if (digestText) updateBubble(digestText);
+              }
+              es.close();
+              setIsLoading(false);
+              queryClient.invalidateQueries({ queryKey: ["threads"] });
+            } else if (evType === "error") {
+              updateBubble(`> ⚠️ **Research error:** ${ev.data}`);
+              es.close();
+              setIsLoading(false);
+            }
+          } catch {
+            // ignore malformed event
+          }
+        });
+      });
+
+      es.onerror = () => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last.role === "assistant" && !last.content) {
+            updated[updated.length - 1] = {
+              ...last,
+              content: "> ⚠️ Connection lost. Please try the research query again.",
+            };
+          }
+          return updated;
+        });
+        es.close();
+        setIsLoading(false);
+      };
+    });
+  }
+
   // ── Send message (plain chat only) ────────────────────────────────────
   async function handleSend(message: string) {
     const threadId = await ensureThread(message);
@@ -436,6 +719,39 @@ export default function ChatPage() {
                 Clear
               </button>
             )}
+            <button
+              onClick={() => navigate('/nl2sql')}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
+              title="Database Q&amp;A (NL2SQL)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              </svg>
+              DB Q&amp;A
+            </button>
+            <button
+              onClick={() => navigate('/sheets')}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
+              title="Sheets Agent — query Google Sheets &amp; CSV files"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+              </svg>
+              Sheets
+            </button>
+            <button
+              onClick={() => navigate('/game')}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
+              title="Tic Tac Toe — AI Agent"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+              </svg>
+              Game
+            </button>
           </div>
         </header>
 
@@ -484,6 +800,9 @@ export default function ChatPage() {
               onGenerateVideo={handleGenerateVideo}
               onRagQuery={handleRagQuery}
               onRagUpload={handleRagUpload}
+              onDbQuery={handleDbQuery}
+              onSheetsQuery={handleSheetsQuery}
+              onResearchQuery={handleResearchQuery}
               attachments={pendingAttachments}
               onRemoveAttachment={handleRemoveAttachment}
             />

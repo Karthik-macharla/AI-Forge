@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
@@ -44,6 +46,18 @@ class Settings(BaseSettings):
     # Google Sheets Service Account (optional until P9)
     GOOGLE_SERVICE_ACCOUNT_JSON: Optional[str] = None
 
+    # Sheets / CSV Query Agent (Project 9)
+    SHEETS_MAX_ROWS: int = 1000  # cap rows sent to the pandas agent to avoid token overflow
+
+    # Research Digest Agent (Project 10)
+    RESEARCH_MAX_PAPERS: int = 15
+    RESEARCH_CONFIDENCE_THRESHOLD: float = 0.75
+    RESEARCH_MAX_ITERATIONS: int = 3
+
+    # Tic Tac Toe AI Agent (Project 11)
+    TICTACTOE_MAX_RETRIES: int = 3
+    TICTACTOE_LLM_TEMPERATURE: float = 0.2
+
     # File Uploads
     MAX_UPLOAD_MB: int = 20
     UPLOAD_DIR: str = "C:/SDG_1_backend/storage"
@@ -53,6 +67,18 @@ class Settings(BaseSettings):
         "text/plain,text/x-python,text/javascript,"
         "video/mp4,video/webm,video/ogg,video/quicktime,"
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # NL2SQL (Project 8)
+    # Sync SQLAlchemy URL for the target query database.
+    # Defaults to the demo SQLite DB when left empty.
+    NL2SQL_DATABASE_URL: str = ""
+    NL2SQL_MAX_ROWS: int = 100
+    NL2SQL_SCHEMA_CACHE_TTL: int = 300  # seconds
+
+    # MCP Integration (Project 12)
+    MCP_ARXIV_SERVER_SCRIPT: str = str(
+        Path(__file__).parent.parent.parent / "mcp_servers" / "arxiv_server.py"
     )
 
 

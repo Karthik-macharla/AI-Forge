@@ -1,8 +1,13 @@
 import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { authApi } from './lib/api';
 import { useAuthStore } from './store/auth';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
+import NL2SQLPage from './pages/NL2SQLPage';
+import SheetsPage from './pages/SheetsPage';
+import ResearchPage from './pages/ResearchPage';
+import TicTacToePage from './pages/TicTacToePage';
 
 export default function App() {
   const { user, isLoading, setUser, setLoading } = useAuthStore();
@@ -30,5 +35,17 @@ export default function App() {
   }
 
   if (!user) return <LoginPage />;
-  return <ChatPage />;
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ChatPage />} />
+        <Route path="/nl2sql" element={<NL2SQLPage />} />
+        <Route path="/sheets" element={<SheetsPage />} />
+        <Route path="/research" element={<ResearchPage />} />
+        <Route path="/game" element={<TicTacToePage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }

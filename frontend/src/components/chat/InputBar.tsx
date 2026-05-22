@@ -27,7 +27,7 @@ const RAG_MIMES = new Set([
 ]);
 const RAG_ACCEPT = "application/pdf,text/plain,text/x-python,text/javascript,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.pdf,.txt,.py,.js,.xlsx";
 
-export type ToolMode = "image" | "video" | "rag";
+export type ToolMode = "image" | "video" | "rag" | "db" | "sheets" | "research";
 
 const TOOL_CONFIG: Record<ToolMode, {
   label: string;
@@ -80,6 +80,48 @@ const TOOL_CONFIG: Record<ToolMode, {
       </svg>
     ),
   },
+  db: {
+    label: "Query database",
+    placeholder: "Ask a question about the database… e.g. Who are the top 5 highest paid employees?",
+    chipBg: "bg-amber-100",
+    chipText: "text-amber-700",
+    chipBorder: "border-amber-300",
+    sendBg: "bg-amber-500 hover:bg-amber-600",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+      </svg>
+    ),
+  },
+  sheets: {
+    label: "Query sheet",
+    placeholder: "Ask a question about the sheet… e.g. Which owner has the most items?",
+    chipBg: "bg-teal-100",
+    chipText: "text-teal-700",
+    chipBorder: "border-teal-300",
+    sendBg: "bg-teal-600 hover:bg-teal-700",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+      </svg>
+    ),
+  },
+  research: {
+    label: "Research digest",
+    placeholder: "Enter a research topic… e.g. transformer attention mechanisms 2024",
+    chipBg: "bg-purple-100",
+    chipText: "text-purple-700",
+    chipBorder: "border-purple-300",
+    sendBg: "bg-purple-600 hover:bg-purple-700",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    ),
+  },
 };
 
 interface InputBarProps {
@@ -91,6 +133,9 @@ interface InputBarProps {
   onGenerateVideo?: (prompt: string) => void;
   onRagQuery?: (question: string) => void;
   onRagUpload?: (file: File) => void;
+  onDbQuery?: (question: string) => void;
+  onSheetsQuery?: (question: string, sheetUrl: string) => void;
+  onResearchQuery?: (question: string) => void;
   attachments?: PendingAttachment[];
   onRemoveAttachment?: (id: string) => void;
 }
@@ -109,6 +154,9 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
   onGenerateVideo,
   onRagQuery,
   onRagUpload,
+  onDbQuery,
+  onSheetsQuery,
+  onResearchQuery,
   attachments = [],
   onRemoveAttachment,
 }: InputBarProps, ref) {
@@ -116,6 +164,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
   const [showMenu, setShowMenu] = useState(false);
   const [activeMode, setActiveMode] = useState<ToolMode | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [sheetUrl, setSheetUrl] = useState("");
   const fileErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -159,16 +208,35 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
     if (activeMode === "image") onGenerateImage?.(trimmed);
     else if (activeMode === "video") onGenerateVideo?.(trimmed);
     else if (activeMode === "rag") onRagQuery?.(trimmed);
-    else onSend(trimmed);
+    else if (activeMode === "db") {
+      // Stay in DB mode so the user can ask follow-up questions
+      onDbQuery?.(trimmed);
+      setValue("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return;
+    } else if (activeMode === "sheets") {
+      // Stay in sheets mode with the URL intact so the user can ask follow-ups
+      onSheetsQuery?.(trimmed, sheetUrl);
+      setValue("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return;
+    } else if (activeMode === "research") {
+      // Stay in research mode so the user can ask follow-up topics
+      onResearchQuery?.(trimmed);
+      setValue("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return;
+    } else onSend(trimmed);
 
     setValue("");
     setActiveMode(null);
+    setSheetUrl("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-    if (e.key === "Escape" && activeMode) { setActiveMode(null); }
+    if (e.key === "Escape" && activeMode) { setActiveMode(null); setSheetUrl(""); }
   }
 
   function autoResize() {
@@ -221,8 +289,35 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
     e.target.value = "";
   }
 
+  const DB_SAMPLES = [
+    "How many tables are in the database?",
+    "How many messages are there in total?",
+    "Which thread has the most messages?",
+    "Show all users with their email addresses",
+    "How many chat threads exist?",
+  ];
+
+  const SHEETS_SAMPLES = [
+    "How many rows are there?",
+    "Who has the most items assigned?",
+    "Show all items assigned to Karthik",
+    "Show P1/Red Flag priority items",
+    "List all unique values in the Assignee column",
+  ];
+
+  const RESEARCH_SAMPLES = [
+    "Latest advances in transformer attention mechanisms",
+    "How does RAG improve LLM accuracy?",
+    "Recent breakthroughs in protein folding",
+    "Diffusion models for image generation 2024",
+    "Self-supervised learning survey",
+  ];
+
   const cfg = activeMode ? TOOL_CONFIG[activeMode] : null;
-  const canSend = value.trim().length > 0 && !isLoading;
+  const canSend =
+    value.trim().length > 0 &&
+    !isLoading &&
+    (activeMode !== "sheets" || sheetUrl.trim().startsWith("https://docs.google.com/spreadsheets"));
   const showTopBar = attachments.length > 0 || !!activeMode;
 
   return (
@@ -263,13 +358,53 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
             ))}
           </div>
 
+          {/* Sample questions — shown when DB, Sheets, or Research mode is active and input is empty */}
+          {(activeMode === "db" || activeMode === "sheets" || activeMode === "research") && !value.trim() && (
+            <div className="w-full flex flex-wrap gap-1.5 mt-2">
+              {(activeMode === "db" ? DB_SAMPLES : activeMode === "sheets" ? SHEETS_SAMPLES : RESEARCH_SAMPLES).map((sample) => (
+                <button
+                  key={sample}
+                  type="button"
+                  onClick={() => { setValue(sample); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    activeMode === "db"
+                      ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                      : activeMode === "sheets"
+                      ? "bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100"
+                      : "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                  }`}
+                >
+                  {sample}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Sheet URL input — only visible in sheets mode */}
+          {activeMode === "sheets" && (
+            <div className="w-full flex items-center gap-2 mt-2 mb-1">
+              <svg className="w-3.5 h-3.5 flex-shrink-0 text-teal-500" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <input
+                type="url"
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                placeholder="Paste Google Sheet URL…"
+                className="flex-1 text-xs bg-teal-50 border border-teal-200 rounded-lg px-3 py-1.5 text-slate-700 placeholder-slate-400 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-200 transition-colors"
+              />
+            </div>
+          )}
+
           {/* Active tool chip — right-aligned */}
           {cfg && activeMode && (
             <div className={`flex items-center gap-1.5 ${cfg.chipBg} ${cfg.chipText} border ${cfg.chipBorder} rounded-full pl-2.5 pr-1.5 py-1 text-xs font-medium flex-shrink-0 ml-auto`}>
               {cfg.icon}
               <span>{cfg.label}</span>
               <button
-                onClick={() => { setActiveMode(null); setValue(""); }}
+                onClick={() => { setActiveMode(null); setValue(""); setSheetUrl(""); }}
                 className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity ml-0.5"
                 aria-label="Cancel mode"
               >
@@ -338,7 +473,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
                 <span className="text-[10px] text-emerald-500 font-medium">RAG</span>
               </button>
               <div className="h-px bg-slate-100 mx-3 my-1" />
-              {(["image", "video", "rag"] as ToolMode[]).map((mode) => {
+              {(["image", "video", "rag", "db", "sheets", "research"] as ToolMode[]).map((mode) => {
                 const t = TOOL_CONFIG[mode];
                 return (
                   <button

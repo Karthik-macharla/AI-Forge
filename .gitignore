@@ -55,6 +55,7 @@ logs/
 # ── Editor ─────────────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
+!.vscode/mcp.json
 .idea/
 *.suo
 *.sw?
